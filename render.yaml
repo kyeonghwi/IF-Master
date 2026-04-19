@@ -1,0 +1,30 @@
+databases:
+  - name: ifmaster-db
+    databaseName: ifmaster
+    user: ifmaster
+    plan: free
+
+services:
+  - type: web
+    name: ifmaster-backend
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -e .
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ifmaster-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DEMO_USERNAME
+        value: test_admin
+      - key: DEMO_PASSWORD
+        value: demo1234
+      - key: FRONTEND_URL
+        value: https://if-master.vercel.app
+      - key: COOKIE_SECURE
+        value: true
