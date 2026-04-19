@@ -5,6 +5,7 @@ from sqlalchemy import (
     UUID,
     TEXT,
     VARCHAR,
+    Boolean,
     Index,
     Integer,
     ForeignKey,
@@ -33,6 +34,7 @@ class InterfaceLog(Base):
     called_at: Mapped[datetime] = mapped_column(nullable=False)
     responded_at: Mapped[datetime | None] = mapped_column()
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
+    response_ms: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     audit_logs: Mapped[list["AuditLog"]] = relationship(back_populates="interface_log")
@@ -55,6 +57,27 @@ class AuditLog(Base):
     result_payload: Mapped[str | None] = mapped_column(TEXT)
 
     interface_log: Mapped["InterfaceLog"] = relationship(back_populates="audit_logs")
+
+
+class InterfaceConfig(Base):
+    __tablename__ = "interface_config"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(VARCHAR(100), unique=True, nullable=False)
+    protocol: Mapped[str] = mapped_column(VARCHAR(10), nullable=False)  # REST, SOAP, MQ, BATCH, SFTP
+    target_org: Mapped[str] = mapped_column(VARCHAR(50), nullable=False)
+    endpoint_url: Mapped[str] = mapped_column(VARCHAR(300), nullable=False)
+    timeout_ms: Mapped[int] = mapped_column(Integer, default=5000)
+    max_retry: Mapped[int] = mapped_column(Integer, default=3)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    schedule_cron: Mapped[str | None] = mapped_column(VARCHAR(50))
+    description: Mapped[str | None] = mapped_column(TEXT)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_interface_config_enabled", "enabled"),
+    )
 
 
 class MockResponse(Base):

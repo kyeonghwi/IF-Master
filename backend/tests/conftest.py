@@ -8,7 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.config import settings
-from app.db.models import AuditLog, Base, InterfaceLog
+from app.db.models import AuditLog, Base, InterfaceConfig, InterfaceLog
 
 
 @pytest.fixture(scope="session")
@@ -48,7 +48,7 @@ async def clean_db(engine, create_tables):
     async with engine.begin() as conn:
         await conn.execute(
             text(
-                "TRUNCATE TABLE audit_log, interface_log, mock_responses RESTART IDENTITY CASCADE"
+                "TRUNCATE TABLE audit_log, interface_log, mock_responses, interface_config RESTART IDENTITY CASCADE"
             )
         )
     yield

@@ -8,7 +8,7 @@ from app.config import settings
 from app.db.database import engine
 from app.db.models import Base
 from app.dependencies import require_auth
-from app.routers import auth, logs, mock_router, retry, stats, stream
+from app.routers import auth, interfaces, logs, mock_router, performance, retry, stats, stream
 from app.services.scheduler import start_scheduler, stop_scheduler
 
 
@@ -47,6 +47,8 @@ app.include_router(auth.router)
 app.include_router(stats.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(logs.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(retry.router, prefix="/api")  # auth injected per-route (needs username)
+app.include_router(interfaces.router, prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(performance.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(stream.router, prefix="/api")  # excluded: browser EventSource cannot set headers
 app.include_router(mock_router.router)  # excluded: internal harness
 

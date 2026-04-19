@@ -62,6 +62,79 @@ export interface RetryResult {
   message: string
 }
 
+// Interface Config
+export type Protocol = 'REST' | 'SOAP' | 'MQ' | 'BATCH' | 'SFTP'
+
+export interface InterfaceConfig {
+  id: string
+  name: string
+  protocol: Protocol
+  target_org: string
+  endpoint_url: string
+  timeout_ms: number
+  max_retry: number
+  enabled: boolean
+  schedule_cron: string | null
+  description: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface InterfaceConfigListResponse {
+  items: InterfaceConfig[]
+  total: number
+}
+
+export interface InterfaceConfigCreate {
+  name: string
+  protocol: string
+  target_org: string
+  endpoint_url: string
+  timeout_ms: number
+  max_retry: number
+  enabled: boolean
+  schedule_cron: string | null
+  description: string | null
+}
+
+export interface ExecuteResult {
+  log_id: string
+  status: string
+  response_ms: number | null
+  message: string
+}
+
+// Performance
+export interface InterfacePerf {
+  service_name: string
+  protocol: string
+  target_org: string
+  call_count: number
+  avg_ms: number
+  p95_ms: number
+  p99_ms: number
+  sla_rate: number
+}
+
+export interface SlaSummary {
+  total_calls: number
+  within_sla: number
+  sla_rate: number
+}
+
+export interface SlowAlert {
+  service_name: string
+  protocol: string
+  p95_ms: number
+  call_count: number
+}
+
+export interface PerformanceResponse {
+  by_interface: InterfacePerf[]
+  sla_summary: SlaSummary
+  slow_alerts: SlowAlert[]
+}
+
 // SSE event payloads
 export interface SSETransaction {
   id: string

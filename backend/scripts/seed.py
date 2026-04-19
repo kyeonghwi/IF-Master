@@ -18,8 +18,17 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://ifmaster:ifmaster@localhost:5432/ifmaster")
 
 TARGET_ORGS = ["금감원", "KB국민은행", "NH농협은행", "삼성화재", "현대해상", "DB손해보험", "한화생명", "교보생명"]
-PROTOCOLS = ["REST", "SOAP", "BATCH"]
-PROTOCOL_WEIGHTS = [0.6, 0.3, 0.1]
+PROTOCOLS = ["REST", "SOAP", "BATCH", "MQ", "SFTP"]
+PROTOCOL_WEIGHTS = [0.40, 0.25, 0.20, 0.10, 0.05]
+
+# Protocol-specific response time ranges (ms)
+PROTOCOL_RESPONSE_MS = {
+    "REST":  (200,  2000),
+    "SOAP":  (500,  3000),
+    "MQ":    (100,  500),
+    "BATCH": (5000, 30000),
+    "SFTP":  (1000, 5000),
+}
 
 SERVICES = {
     "금감원": ["보험료납입통보", "계약사항보고", "사고통보"],
@@ -118,7 +127,9 @@ def make_record() -> dict:
 
     offset_seconds = random.randint(0, 7 * 24 * 3600)
     called_at = NOW - timedelta(seconds=offset_seconds)
-    responded_at = (called_at + timedelta(milliseconds=random.randint(80, 5000))) if status != "PENDING" else None
+    ms_range = PROTOCOL_RESPONSE_MS.get(protocol, (200, 2000))
+    response_ms_val = random.randint(*ms_range) if status != "PENDING" else None
+    responded_at = (called_at + timedelta(milliseconds=response_ms_val)) if response_ms_val else None
 
     error_message = None
     stack_trace = None
@@ -142,12 +153,27 @@ def make_record() -> dict:
         "stack_trace": stack_trace,
         "called_at": called_at,
         "responded_at": responded_at,
+        "response_ms": response_ms_val,
         "retry_count": retry_count,
     }
 
 
+INTERFACE_CONFIGS = [
+    {"name": "금감원 보험계약 조회",    "protocol": "REST",  "target_org": "금감원",     "endpoint_url": "https://api.fss.or.kr/v1/contract/query",       "timeout_ms": 5000,  "max_retry": 3, "description": "금감원 보험계약 현황 조회 API"},
+    {"name": "금감원 사고통보",         "protocol": "SOAP",  "target_org": "금감원",     "endpoint_url": "https://ws.fss.or.kr/services/AccidentNotify",   "timeout_ms": 8000,  "max_retry": 2, "description": "금감원 사고 발생 통보 SOAP 서비스"},
+    {"name": "KB 계좌이체 요청",        "protocol": "REST",  "target_org": "KB국민은행", "endpoint_url": "https://api.kbstar.com/v2/transfer",             "timeout_ms": 3000,  "max_retry": 3, "description": "KB국민은행 보험료 자동이체 API"},
+    {"name": "KB 잔액조회",            "protocol": "REST",  "target_org": "KB국민은행", "endpoint_url": "https://api.kbstar.com/v2/balance",              "timeout_ms": 2000,  "max_retry": 1, "description": "출금계좌 잔액 사전 확인"},
+    {"name": "NH 자동이체 등록",        "protocol": "SOAP",  "target_org": "NH농협은행", "endpoint_url": "https://ws.nhbank.or.kr/AutoTransfer",           "timeout_ms": 6000,  "max_retry": 2, "description": "NH농협 자동이체 등록 서비스"},
+    {"name": "손해율 일괄 배치",        "protocol": "BATCH", "target_org": "내부",       "endpoint_url": "/batch/jobs/loss-ratio-daily",                   "timeout_ms": 60000, "max_retry": 1, "schedule_cron": "0 2 * * *", "description": "전일 손해율 집계 야간 배치 (매일 02:00)"},
+    {"name": "계약 갱신 배치",         "protocol": "BATCH", "target_org": "내부",       "endpoint_url": "/batch/jobs/contract-renewal",                   "timeout_ms": 120000,"max_retry": 1, "schedule_cron": "0 1 * * *", "description": "만기 도래 계약 자동 갱신 배치 (매일 01:00)"},
+    {"name": "MQ 보험료납입 통보",      "protocol": "MQ",    "target_org": "삼성화재",   "endpoint_url": "mq://SAMSUNG.PREMIUM.NOTIFY",                   "timeout_ms": 2000,  "max_retry": 5, "description": "ActiveMQ 보험료 납입 완료 메시지 발행"},
+    {"name": "SFTP 계약파일 수신",      "protocol": "SFTP",  "target_org": "한화생명",   "endpoint_url": "sftp://hanwha-life.co.kr/contracts/inbound/",    "timeout_ms": 30000, "max_retry": 2, "description": "한화생명 계약 데이터 파일 일괄 수신"},
+    {"name": "현대해상 갱신처리",       "protocol": "REST",  "target_org": "현대해상",   "endpoint_url": "https://api.hi.co.kr/v1/renewal",               "timeout_ms": 5000,  "max_retry": 3, "description": "현대해상 계약 만기 갱신 처리 API", "enabled": False},
+]
+
+
 async def seed():
-    from app.db.models import Base, InterfaceLog, MockResponse
+    from app.db.models import Base, InterfaceConfig, InterfaceLog, MockResponse
 
     engine = create_async_engine(DATABASE_URL, echo=False)
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -181,6 +207,13 @@ async def seed():
         async with session.begin():
             session.add_all(mock_rows)
 
+    # Seed interface_config
+    async with session_factory() as session:
+        async with session.begin():
+            for cfg_data in INTERFACE_CONFIGS:
+                cfg = InterfaceConfig(**{k: v for k, v in cfg_data.items()})
+                session.add(cfg)
+
     await engine.dispose()
 
     status_counts: dict[str, int] = {}
@@ -191,6 +224,7 @@ async def seed():
     for s, c in sorted(status_counts.items()):
         print(f"  {s}: {c} ({c / len(records) * 100:.1f}%)")
     print(f"Pre-seeded {len(mock_rows)} mock_responses (Case A 데모용)")
+    print(f"Seeded {len(INTERFACE_CONFIGS)} interface_config entries")
 
 
 if __name__ == "__main__":

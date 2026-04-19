@@ -6,8 +6,10 @@ import clsx from 'clsx'
 import { logout } from '@/lib/api'
 
 const NAV = [
-  { href: '/dashboard', label: 'Control Tower' },
-  { href: '/logs',      label: 'Interface Logs' },
+  { href: '/dashboard',   label: 'Control Tower' },
+  { href: '/logs',        label: 'Interface Logs' },
+  { href: '/interfaces',  label: 'IF Registry' },
+  { href: '/performance', label: 'Performance' },
 ]
 
 export function Sidebar() {
