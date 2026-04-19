@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+.pytest_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+.next/
+out/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+bash.exe.stackdump
+
+# IDE
+.vscode/
+.idea/
+
+# Project-specific
+.bkit/
+.claude/
+.gstack/
+.impeccable.md
+anomalies.html
+dashboard.html
+health.html
+logs.html
+settings.html
