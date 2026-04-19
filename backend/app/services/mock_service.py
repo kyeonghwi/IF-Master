@@ -73,7 +73,6 @@ async def dispatch(
             set_={"status": outcome, "response_json": response_json},
         )
     )
-    async with db.begin():
-        await db.execute(stmt)
+    await db.execute(stmt)  # caller manages the transaction
 
     return outcome, actual_ms, response_json
