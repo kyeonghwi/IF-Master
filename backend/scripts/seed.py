@@ -207,12 +207,22 @@ async def seed():
         async with session.begin():
             session.add_all(mock_rows)
 
-    # Seed interface_config
+    # Seed interface_config (idempotent: skip if already has data)
+    from sqlalchemy import func, select as sa_select
     async with session_factory() as session:
-        async with session.begin():
-            for cfg_data in INTERFACE_CONFIGS:
-                cfg = InterfaceConfig(**{k: v for k, v in cfg_data.items()})
-                session.add(cfg)
+        existing_count = (await session.execute(
+            sa_select(func.count()).select_from(InterfaceConfig)
+        )).scalar_one()
+
+    if existing_count == 0:
+        async with session_factory() as session:
+            async with session.begin():
+                for cfg_data in INTERFACE_CONFIGS:
+                    cfg = InterfaceConfig(**{k: v for k, v in cfg_data.items()})
+                    session.add(cfg)
+        print(f"Seeded {len(INTERFACE_CONFIGS)} interface_config entries")
+    else:
+        print(f"interface_config already has {existing_count} entries, skipping")
 
     await engine.dispose()
 
@@ -224,7 +234,6 @@ async def seed():
     for s, c in sorted(status_counts.items()):
         print(f"  {s}: {c} ({c / len(records) * 100:.1f}%)")
     print(f"Pre-seeded {len(mock_rows)} mock_responses (Case A 데모용)")
-    print(f"Seeded {len(INTERFACE_CONFIGS)} interface_config entries")
 
 
 if __name__ == "__main__":
