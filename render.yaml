@@ -25,6 +25,6 @@ services:
       - key: DEMO_PASSWORD
         value: demo1234
       - key: FRONTEND_URL
-        value: https://if-master.vercel.app
+        value: https://if-master-gdve-dww1jhwkd-kyeonghwis-projects.vercel.app
       - key: COOKIE_SECURE
         value: true
