@@ -1,7 +1,9 @@
+import traceback
 import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -117,13 +119,14 @@ async def delete_interface(
     await db.commit()
 
 
-@router.post("/interfaces/{cfg_id}/execute", response_model=ExecuteResult)
+@router.post("/interfaces/{cfg_id}/execute")
 async def execute_interface(
     cfg_id: uuid.UUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
+  try:
     cfg = (await db.execute(select(InterfaceConfig).where(InterfaceConfig.id == cfg_id))).scalar_one_or_none()
     if cfg is None:
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "인터페이스를 찾을 수 없습니다"})
@@ -185,4 +188,13 @@ async def execute_interface(
         })
 
     message = "실행 성공" if outcome == "SUCCESS" else "실행 실패"
-    return ExecuteResult(log_id=log.id, status=outcome, response_ms=response_ms, message=message)
+    return {
+        "log_id": str(log.id),
+        "status": outcome,
+        "response_ms": response_ms,
+        "message": message,
+    }
+  except HTTPException:
+    raise
+  except Exception as e:
+    return JSONResponse(status_code=500, content={"error": str(e), "trace": traceback.format_exc()})
