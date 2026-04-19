@@ -2,6 +2,7 @@ import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
+from sqlalchemy import text
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
@@ -42,6 +43,18 @@ async def _seed_interface_configs() -> None:
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Add response_ms column if not exists (existing deployments)
+    async with engine.begin() as conn:
+        await conn.execute(
+            text("ALTER TABLE interface_log ADD COLUMN IF NOT EXISTS response_ms INTEGER")
+        )
+        # Backfill from responded_at - called_at
+        await conn.execute(text("""
+            UPDATE interface_log
+               SET response_ms = EXTRACT(EPOCH FROM (responded_at - called_at))::INTEGER * 1000
+             WHERE response_ms IS NULL AND responded_at IS NOT NULL
+        """))
 
     await _seed_interface_configs()
 
