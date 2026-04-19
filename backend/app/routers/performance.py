@@ -26,7 +26,7 @@ async def get_performance_debug(db: AsyncSession = Depends(get_db)):
         return JSONResponse(status_code=500, content={"error": str(e), "trace": traceback.format_exc()})
 
 
-@router.get("/performance", response_model=PerformanceResponse)
+@router.get("/performance")
 async def get_performance(
     from_dt: datetime | None = Query(default=None),
     to_dt: datetime | None = Query(default=None),
@@ -34,6 +34,7 @@ async def get_performance(
     target_org: str | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
 ):
+  try:
     now = datetime.utcnow()
     effective_from = from_dt.replace(tzinfo=None) if from_dt else now - timedelta(hours=24)
     effective_to = to_dt.replace(tzinfo=None) if to_dt else now
@@ -109,3 +110,5 @@ async def get_performance(
         sla_summary=SlaSummary(total_calls=total_calls, within_sla=within_sla, sla_rate=sla_rate),
         slow_alerts=slow_alerts,
     )
+  except Exception as e:
+    return JSONResponse(status_code=500, content={"error": str(e), "trace": traceback.format_exc()})
