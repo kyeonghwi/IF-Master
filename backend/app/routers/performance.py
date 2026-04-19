@@ -93,13 +93,13 @@ async def get_performance(
 
     slow_alerts = [
         SlowAlert(
-            service_name=r["service_name"],
-            protocol=r["protocol"],
-            p95_ms=float(r["p95_ms"]),
-            call_count=r["call_count"],
+            service_name=r.service_name,
+            protocol=r.protocol,
+            p95_ms=r.p95_ms,
+            call_count=r.call_count,
         )
         for r in by_interface
-        if float(r.p95_ms) > _SLA_THRESHOLD_MS
+        if r.p95_ms > _SLA_THRESHOLD_MS
     ]
 
     return PerformanceResponse(
