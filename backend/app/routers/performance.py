@@ -1,11 +1,10 @@
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
-from app.db.models import InterfaceLog
 from app.schemas import InterfacePerf, PerformanceResponse, SlaSummary, SlowAlert
 
 router = APIRouter()
@@ -25,8 +24,17 @@ async def get_performance(
     effective_from = from_dt.replace(tzinfo=None) if from_dt else now - timedelta(hours=24)
     effective_to = to_dt.replace(tzinfo=None) if to_dt else now
 
-    # Per-interface aggregation using percentile_cont
-    perf_sql = text("""
+    params: dict = {"from_dt": effective_from, "to_dt": effective_to, "sla_ms": _SLA_THRESHOLD_MS}
+    filters = "called_at BETWEEN :from_dt AND :to_dt"
+
+    if protocol:
+        filters += " AND protocol = :protocol"
+        params["protocol"] = protocol
+    if target_org:
+        filters += " AND target_org = :target_org"
+        params["target_org"] = target_org
+
+    perf_sql = text(f"""
         SELECT
             service_name,
             protocol,
@@ -36,24 +44,17 @@ async def get_performance(
             COALESCE(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_ms), 0) AS p95_ms,
             COALESCE(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY response_ms), 0) AS p99_ms,
             COALESCE(
-                COUNT(*) FILTER (WHERE response_ms < :sla_ms) * 100.0 / NULLIF(COUNT(*) FILTER (WHERE response_ms IS NOT NULL), 0),
+                COUNT(*) FILTER (WHERE response_ms < :sla_ms) * 100.0
+                    / NULLIF(COUNT(*) FILTER (WHERE response_ms IS NOT NULL), 0),
                 100.0
             ) AS sla_rate
         FROM interface_log
-        WHERE called_at BETWEEN :from_dt AND :to_dt
-          AND (:protocol IS NULL OR protocol = :protocol)
-          AND (:target_org IS NULL OR target_org = :target_org)
+        WHERE {filters}
         GROUP BY service_name, protocol, target_org
         ORDER BY p95_ms DESC NULLS LAST
     """)
 
-    rows = (await db.execute(perf_sql, {
-        "from_dt": effective_from,
-        "to_dt": effective_to,
-        "protocol": protocol,
-        "target_org": target_org,
-        "sla_ms": _SLA_THRESHOLD_MS,
-    })).mappings().all()
+    rows = (await db.execute(perf_sql, params)).mappings().all()
 
     by_interface = [
         InterfacePerf(
@@ -69,35 +70,22 @@ async def get_performance(
         for r in rows
     ]
 
-    # SLA summary
-    sla_sql = text("""
+    sla_sql = text(f"""
         SELECT
             COUNT(*) FILTER (WHERE response_ms IS NOT NULL) AS total_calls,
-            COUNT(*) FILTER (WHERE response_ms < :sla_ms) AS within_sla
+            COUNT(*) FILTER (WHERE response_ms < :sla_ms)   AS within_sla
         FROM interface_log
-        WHERE called_at BETWEEN :from_dt AND :to_dt
-          AND (:protocol IS NULL OR protocol = :protocol)
-          AND (:target_org IS NULL OR target_org = :target_org)
+        WHERE {filters}
     """)
-    sla_row = (await db.execute(sla_sql, {
-        "from_dt": effective_from,
-        "to_dt": effective_to,
-        "protocol": protocol,
-        "target_org": target_org,
-        "sla_ms": _SLA_THRESHOLD_MS,
-    })).mappings().one()
+    sla_row = (await db.execute(sla_sql, params)).mappings().one()
 
     total_calls = sla_row["total_calls"] or 0
-    within_sla = sla_row["within_sla"] or 0
-    sla_rate = (within_sla / total_calls * 100) if total_calls > 0 else 100.0
+    within_sla  = sla_row["within_sla"]  or 0
+    sla_rate    = (within_sla / total_calls * 100) if total_calls > 0 else 100.0
 
     slow_alerts = [
-        SlowAlert(
-            service_name=r.service_name,
-            protocol=r.protocol,
-            p95_ms=r.p95_ms,
-            call_count=r.call_count,
-        )
+        SlowAlert(service_name=r.service_name, protocol=r.protocol,
+                  p95_ms=r.p95_ms, call_count=r.call_count)
         for r in by_interface
         if r.p95_ms > _SLA_THRESHOLD_MS
     ]
