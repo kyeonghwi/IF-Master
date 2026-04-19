@@ -1,6 +1,8 @@
+import traceback
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +12,18 @@ from app.schemas import InterfacePerf, PerformanceResponse, SlaSummary, SlowAler
 router = APIRouter()
 
 _SLA_THRESHOLD_MS = 3000
+
+
+@router.get("/performance/debug")
+async def get_performance_debug(db: AsyncSession = Depends(get_db)):
+    try:
+        result = await db.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='interface_log' AND column_name='response_ms'"))
+        col_exists = result.scalar_one_or_none()
+        count_result = await db.execute(text("SELECT COUNT(*) FROM interface_log WHERE response_ms IS NOT NULL"))
+        count = count_result.scalar_one()
+        return {"response_ms_column_exists": bool(col_exists), "non_null_count": count}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e), "trace": traceback.format_exc()})
 
 
 @router.get("/performance", response_model=PerformanceResponse)
