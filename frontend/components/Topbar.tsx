@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getUsername } from '@/lib/api'
 
 interface Props {
   title: string
@@ -15,7 +14,7 @@ export function Topbar({ title, subtitle, connected = false, children }: Props) 
   const [user,  setUser]  = useState('')
 
   useEffect(() => {
-    setUser(getUsername() ?? '—')
+    setUser('test_admin')
     function tick() {
       setClock(
         new Date().toLocaleString('ko-KR', {

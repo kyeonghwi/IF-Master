@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import clsx from 'clsx'
-import { clearToken } from '@/lib/api'
+import { logout } from '@/lib/api'
 
 const NAV = [
   { href: '/dashboard', label: 'Control Tower' },
@@ -14,9 +14,9 @@ export function Sidebar() {
   const pathname = usePathname()
   const router   = useRouter()
 
-  function handleLogout(e: React.MouseEvent) {
+  async function handleLogout(e: React.MouseEvent) {
     e.preventDefault()
-    clearToken()
+    await logout()
     router.push('/login')
   }
 
