@@ -1,8 +1,7 @@
-import traceback
 from datetime import datetime, timedelta
+from typing import Any
 
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,18 +13,6 @@ router = APIRouter()
 _SLA_THRESHOLD_MS = 3000
 
 
-@router.get("/performance/debug")
-async def get_performance_debug(db: AsyncSession = Depends(get_db)):
-    try:
-        result = await db.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='interface_log' AND column_name='response_ms'"))
-        col_exists = result.scalar_one_or_none()
-        count_result = await db.execute(text("SELECT COUNT(*) FROM interface_log WHERE response_ms IS NOT NULL"))
-        count = count_result.scalar_one()
-        return {"response_ms_column_exists": bool(col_exists), "non_null_count": count}
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e), "trace": traceback.format_exc()})
-
-
 @router.get("/performance")
 async def get_performance(
     from_dt: datetime | None = Query(default=None),
@@ -33,8 +20,7 @@ async def get_performance(
     protocol: str | None = Query(default=None),
     target_org: str | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
-):
-  try:
+) -> dict[str, Any]:
     now = datetime.utcnow()
     effective_from = from_dt.replace(tzinfo=None) if from_dt else now - timedelta(hours=24)
     effective_to = to_dt.replace(tzinfo=None) if to_dt else now
@@ -72,16 +58,16 @@ async def get_performance(
     rows = (await db.execute(perf_sql, params)).mappings().all()
 
     by_interface = [
-        InterfacePerf(
-            service_name=r["service_name"],
-            protocol=r["protocol"],
-            target_org=r["target_org"],
-            call_count=r["call_count"],
-            avg_ms=float(r["avg_ms"]),
-            p95_ms=float(r["p95_ms"]),
-            p99_ms=float(r["p99_ms"]),
-            sla_rate=float(r["sla_rate"]),
-        )
+        {
+            "service_name": r["service_name"],
+            "protocol": r["protocol"],
+            "target_org": r["target_org"],
+            "call_count": int(r["call_count"]),
+            "avg_ms": float(r["avg_ms"]),
+            "p95_ms": float(r["p95_ms"]),
+            "p99_ms": float(r["p99_ms"]),
+            "sla_rate": float(r["sla_rate"]),
+        }
         for r in rows
     ]
 
@@ -94,21 +80,23 @@ async def get_performance(
     """)
     sla_row = (await db.execute(sla_sql, params)).mappings().one()
 
-    total_calls = sla_row["total_calls"] or 0
-    within_sla  = sla_row["within_sla"]  or 0
+    total_calls = int(sla_row["total_calls"] or 0)
+    within_sla  = int(sla_row["within_sla"]  or 0)
     sla_rate    = (within_sla / total_calls * 100) if total_calls > 0 else 100.0
 
     slow_alerts = [
-        SlowAlert(service_name=r.service_name, protocol=r.protocol,
-                  p95_ms=r.p95_ms, call_count=r.call_count)
+        {
+            "service_name": r["service_name"],
+            "protocol": r["protocol"],
+            "p95_ms": r["p95_ms"],
+            "call_count": r["call_count"],
+        }
         for r in by_interface
-        if r.p95_ms > _SLA_THRESHOLD_MS
+        if r["p95_ms"] > _SLA_THRESHOLD_MS
     ]
 
-    return PerformanceResponse(
-        by_interface=by_interface,
-        sla_summary=SlaSummary(total_calls=total_calls, within_sla=within_sla, sla_rate=sla_rate),
-        slow_alerts=slow_alerts,
-    )
-  except Exception as e:
-    return JSONResponse(status_code=500, content={"error": str(e), "trace": traceback.format_exc()})
+    return {
+        "by_interface": by_interface,
+        "sla_summary": {"total_calls": total_calls, "within_sla": within_sla, "sla_rate": sla_rate},
+        "slow_alerts": slow_alerts,
+    }
