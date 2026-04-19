@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     jwt_secret: str = "change-me"
     demo_username: str = "test_admin"
     demo_password: str = "demo1234"
-    frontend_url: str = "http://localhost:3000"
+    frontend_url: str = "https://if-master.vercel.app"
     cookie_secure: bool = False  # True in production (HTTPS)
 
     class Config:

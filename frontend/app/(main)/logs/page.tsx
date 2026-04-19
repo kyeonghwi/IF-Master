@@ -199,6 +199,11 @@ export default function LogsPage() {
           ) : logsQuery.isError ? (
             <div className="p-8 text-center text-[12px]" style={{ color: 'var(--danger)' }}>
               데이터를 불러오지 못했습니다.
+              {logsQuery.error instanceof Error && (
+                <div className="mt-1 text-[11px]" style={{ color: 'var(--dim)' }}>
+                  {logsQuery.error.message}
+                </div>
+              )}
             </div>
           ) : logs.length === 0 ? (
             <div className="p-8 text-center text-[12px]" style={{ color: 'var(--dim)' }}>
