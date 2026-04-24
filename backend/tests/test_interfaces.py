@@ -144,3 +144,94 @@ async def test_invalid_protocol_returns_422(client: AsyncClient, auth_cookies: d
 async def test_requires_auth(client: AsyncClient):
     resp = await client.get("/api/interfaces")
     assert resp.status_code == 401
+
+
+# ── Cron validation tests ──────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_create_interface_invalid_cron(client: AsyncClient, auth_cookies: dict):
+    """REQ-014: Non-empty invalid cron → 422 INVALID_CRON."""
+    resp = await client.post(
+        "/api/interfaces",
+        json={
+            "name": "invalid cron test",
+            "protocol": "REST",
+            "target_org": "테스트",
+            "endpoint_url": "https://api.test.com/v1/test",
+            "timeout_ms": 3000,
+            "max_retry": 2,
+            "enabled": True,
+            "schedule_cron": "not-a-cron",
+        },
+        cookies=auth_cookies,
+    )
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["code"] == "INVALID_CRON"
+
+
+@pytest.mark.asyncio
+async def test_update_interface_invalid_cron(client: AsyncClient, auth_cookies: dict, sample_config):
+    """REQ-014: PUT with invalid cron → 422 INVALID_CRON."""
+    cfg_id = sample_config["id"]
+    resp = await client.put(
+        f"/api/interfaces/{cfg_id}",
+        json={"schedule_cron": "99 99 99 99 99 99"},  # 6 fields → invalid
+        cookies=auth_cookies,
+    )
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["code"] == "INVALID_CRON"
+
+
+@pytest.mark.asyncio
+async def test_update_interface_valid_cron(client: AsyncClient, auth_cookies: dict, sample_config):
+    """REQ-014/AC-3.3: Valid 5-field cron → 200, value persisted."""
+    cfg_id = sample_config["id"]
+    resp = await client.put(
+        f"/api/interfaces/{cfg_id}",
+        json={"schedule_cron": "0 9 * * 1-5"},
+        cookies=auth_cookies,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["schedule_cron"] == "0 9 * * 1-5"
+
+
+@pytest.mark.asyncio
+async def test_update_interface_empty_cron_skips_validation(
+    client: AsyncClient, auth_cookies: dict, sample_config
+):
+    """REQ-015/AC-3.4: Empty string cron → no 422, accepted."""
+    cfg_id = sample_config["id"]
+    # First set a valid cron
+    await client.put(
+        f"/api/interfaces/{cfg_id}",
+        json={"schedule_cron": "0 9 * * 1-5"},
+        cookies=auth_cookies,
+    )
+    # Now clear it with empty string
+    resp = await client.put(
+        f"/api/interfaces/{cfg_id}",
+        json={"schedule_cron": ""},
+        cookies=auth_cookies,
+    )
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_create_interface_null_cron_accepted(client: AsyncClient, auth_cookies: dict):
+    """REQ-015: null schedule_cron → accepted without validation."""
+    resp = await client.post(
+        "/api/interfaces",
+        json={
+            "name": "no cron test",
+            "protocol": "REST",
+            "target_org": "테스트",
+            "endpoint_url": "https://api.test.com/v1/test2",
+            "timeout_ms": 3000,
+            "max_retry": 2,
+            "enabled": True,
+            "schedule_cron": None,
+        },
+        cookies=auth_cookies,
+    )
+    assert resp.status_code == 201
+    assert resp.json()["schedule_cron"] is None

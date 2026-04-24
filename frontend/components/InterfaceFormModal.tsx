@@ -155,6 +155,9 @@ export function InterfaceFormModal({ open, initial, onSave, onClose }: Props) {
               placeholder="0 2 * * * (매일 02:00)"
               className={inputCls()}
             />
+            <p className="text-[11px] mt-1" style={{ color: 'var(--dim)' }}>
+              예: <code className="font-mono">0 9 * * 1-5</code> (평일 오전 9시)
+            </p>
           </Field>
 
           <Field label="설명 (선택)">

@@ -62,6 +62,16 @@ export interface RetryResult {
   message: string
 }
 
+export interface BulkRetryItem {
+  log_id: string
+  result: 'SUCCESS' | 'FAILED' | 'ALREADY_PROCESSED'
+  message: string
+}
+
+export interface BulkRetryResponse {
+  results: BulkRetryItem[]
+}
+
 // Interface Config
 export type Protocol = 'REST' | 'SOAP' | 'MQ' | 'BATCH' | 'SFTP'
 

@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import type { LogsResponse, LogDetail, LogSummary } from '@/lib/types'
+import type { LogsResponse, LogDetail, LogSummary, BulkRetryResponse } from '@/lib/types'
 import { authFetch, ApiError } from '@/lib/api'
 import { useSSE } from '@/hooks/useSSE'
 import { Topbar } from '@/components/Topbar'
@@ -21,6 +21,8 @@ export default function LogsPage() {
   const [panelOpen,   setPanelOpen]   = useState(false)
   const [retrying,    setRetrying]    = useState(false)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'danger' | 'warning' } | null>(null)
+  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
+  const [bulkRetrying, setBulkRetrying] = useState(false)
 
   function showToast(msg: string, type: 'success' | 'danger' | 'warning') {
     setToast({ msg, type })
@@ -48,6 +50,9 @@ export default function LogsPage() {
       showToast(evt.message, ok ? 'success' : 'danger')
     },
   })
+
+  // Reset row selection when page changes
+  useEffect(() => { setRowSelection({}) }, [page])
 
   async function openPanel(log: LogSummary) {
     setPanelOpen(true)
@@ -89,14 +94,45 @@ export default function LogsPage() {
     }
   }
 
+  async function handleBulkRetry() {
+    const log_ids = Object.keys(rowSelection)
+    if (log_ids.length === 0) return
+    setBulkRetrying(true)
+    try {
+      const result = await authFetch<BulkRetryResponse>('/api/retry/bulk', {
+        method: 'POST',
+        body: JSON.stringify({ log_ids }),
+      })
+      const counts = { success: 0, already: 0, failed: 0 }
+      for (const item of result.results) {
+        if (item.result === 'SUCCESS') counts.success++
+        else if (item.result === 'ALREADY_PROCESSED') counts.already++
+        else counts.failed++
+      }
+      const parts: string[] = []
+      if (counts.success > 0) parts.push(`${counts.success}건 성공`)
+      if (counts.already > 0) parts.push(`${counts.already}건 이미 처리됨`)
+      if (counts.failed > 0) parts.push(`${counts.failed}건 실패`)
+      showToast(parts.join(', '), counts.failed > 0 ? 'danger' : 'success')
+      setRowSelection({})
+      queryClient.invalidateQueries({ queryKey: ['logs'] })
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : '일괄 재처리 실패', 'danger')
+    } finally {
+      setBulkRetrying(false)
+    }
+  }
+
   function handleApplyFilters(f: LogFilters) {
     setFilters(f)
     setPage(1)
+    setRowSelection({})
   }
 
   function handleResetFilters() {
     setFilters({ status: '', target_org: '' })
     setPage(1)
+    setRowSelection({})
   }
 
   const total      = logsQuery.data?.total ?? 0
@@ -132,9 +168,29 @@ export default function LogsPage() {
         subtitle="인터페이스 호출 이력 전체 조회"
         connected={connected}
       >
-        <span className="font-mono text-[12px]" style={{ color: 'var(--dim)' }}>
-          Showing {from}–{to} of {total.toLocaleString('ko-KR')}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-[12px]" style={{ color: 'var(--dim)' }}>
+            Showing {from}–{to} of {total.toLocaleString('ko-KR')}
+          </span>
+          <button
+            onClick={() => {
+              const params = new URLSearchParams()
+              if (filters.status)     params.set('status',     filters.status)
+              if (filters.target_org) params.set('target_org', filters.target_org)
+              const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+              window.location.href = `${API_URL}/api/logs/export?${params}`
+            }}
+            className="px-3 py-[5px] text-[11px] font-medium rounded-[2px] border border-border transition-colors"
+            style={{
+              background: 'transparent',
+              color: 'var(--muted)',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-2)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+          >
+            Export CSV
+          </button>
+        </div>
       </Topbar>
 
       <FilterBar
@@ -189,7 +245,7 @@ export default function LogsPage() {
         </div>
       )}
 
-      {/* Table + Pagination */}
+      {/* Table + Action bar + Pagination */}
       <div className="flex-1 overflow-hidden flex flex-col">
         <div className="flex-1 overflow-y-auto">
           {logsQuery.isLoading ? (
@@ -215,9 +271,35 @@ export default function LogsPage() {
               page={page}
               pageSize={PAGE_SIZE}
               onRowClick={openPanel}
+              rowSelection={rowSelection}
+              onRowSelectionChange={updater => setRowSelection(prev => updater(prev))}
             />
           )}
         </div>
+
+        {/* Sticky action bar — shown when rows are selected */}
+        {Object.keys(rowSelection).length > 0 && (
+          <div
+            className="flex items-center justify-between px-6 py-[10px] border-t border-border shrink-0"
+            style={{ background: 'oklch(0.13 0.008 75)', zIndex: 40 }}
+          >
+            <span className="text-[12px] font-medium" style={{ color: 'var(--text)' }}>
+              {Object.keys(rowSelection).length}개 선택됨
+            </span>
+            <button
+              onClick={handleBulkRetry}
+              disabled={bulkRetrying}
+              className="px-3 py-[6px] text-[12px] font-medium rounded-[2px] border transition-colors disabled:opacity-50"
+              style={{
+                background:  'var(--accent-dim)',
+                color:       'var(--accent-text)',
+                borderColor: 'oklch(0.78 0.14 82 / 0.25)',
+              }}
+            >
+              {bulkRetrying ? '처리 중...' : `선택 ${Object.keys(rowSelection).length}건 재처리`}
+            </button>
+          </div>
+        )}
 
         {/* Pagination */}
         <div
@@ -230,8 +312,8 @@ export default function LogsPage() {
           <div className="flex items-center gap-[4px]">
             {/* First / Prev */}
             {[
-              { label: '\u00AB', disabled: page <= 1, target: 1 },
-              { label: '\u2039', disabled: page <= 1, target: page - 1 },
+              { label: '«', disabled: page <= 1, target: 1 },
+              { label: '‹', disabled: page <= 1, target: page - 1 },
             ].map(({ label, disabled, target }) => (
               <button
                 key={label}
@@ -264,8 +346,8 @@ export default function LogsPage() {
 
             {/* Next / Last */}
             {[
-              { label: '\u203A', disabled: page >= totalPages, target: page + 1 },
-              { label: '\u00BB', disabled: page >= totalPages, target: totalPages },
+              { label: '›', disabled: page >= totalPages, target: page + 1 },
+              { label: '»', disabled: page >= totalPages, target: totalPages },
             ].map(({ label, disabled, target }) => (
               <button
                 key={label}

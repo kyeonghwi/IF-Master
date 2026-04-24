@@ -17,12 +17,33 @@ interface Props {
   page: number
   pageSize: number
   onRowClick: (log: LogSummary) => void
+  rowSelection: Record<string, boolean>
+  onRowSelectionChange: (updater: (old: Record<string, boolean>) => Record<string, boolean>) => void
 }
 
-export function LogTable({ logs, page, pageSize, onRowClick }: Props) {
+export function LogTable({ logs, page, pageSize, onRowClick, rowSelection, onRowSelectionChange }: Props) {
   const offset = (page - 1) * pageSize
 
   const columns = [
+    col.display({
+      id: 'select',
+      header: '',
+      cell: info => {
+        const row = info.row
+        if (row.original.status === 'SUCCESS') return null
+        return (
+          <input
+            type="checkbox"
+            checked={row.getIsSelected()}
+            onChange={row.getToggleSelectedHandler()}
+            onClick={e => e.stopPropagation()}
+            className="cursor-pointer accent-accent"
+            style={{ width: 14, height: 14 }}
+          />
+        )
+      },
+      size: 36,
+    }),
     col.display({
       id: 'num',
       header: '#',
@@ -131,6 +152,14 @@ export function LogTable({ logs, page, pageSize, onRowClick }: Props) {
     data: logs,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    enableRowSelection: row => row.original.status !== 'SUCCESS',
+    state: { rowSelection },
+    onRowSelectionChange: updater => {
+      if (typeof updater === 'function') {
+        onRowSelectionChange(updater as (old: Record<string, boolean>) => Record<string, boolean>)
+      }
+    },
+    getRowId: row => row.id,
   })
 
   return (

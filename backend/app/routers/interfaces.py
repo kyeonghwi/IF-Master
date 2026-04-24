@@ -1,3 +1,4 @@
+import re
 import uuid
 from datetime import datetime, timezone
 
@@ -29,6 +30,23 @@ def _validate_protocol(protocol: str) -> None:
         )
 
 
+# 5-field cron: each field is *, digits, commas, hyphens, slashes
+_CRON_RE = re.compile(
+    r"^(?:[0-9,\-\*/]+\s+){4}[0-9,\-\*/]+$"
+)
+
+
+def _validate_cron(value: str | None) -> None:
+    """Validates a 5-field cron expression. None/empty string is accepted (means no schedule)."""
+    if not value:
+        return
+    if not _CRON_RE.match(value.strip()):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "INVALID_CRON", "message": "cron expression invalid (e.g. 0 9 * * 1-5)"},
+        )
+
+
 @router.get("/interfaces", response_model=InterfaceConfigListResponse)
 async def list_interfaces(
     enabled: bool | None = None,
@@ -55,6 +73,7 @@ async def create_interface(
     db: AsyncSession = Depends(get_db),
 ):
     _validate_protocol(body.protocol)
+    _validate_cron(body.schedule_cron)
     cfg = InterfaceConfig(
         **body.model_dump(),
         protocol=body.protocol.upper(),
@@ -79,6 +98,8 @@ async def update_interface(
         if field == "protocol" and value is not None:
             _validate_protocol(value)
             value = value.upper()
+        if field == "schedule_cron":
+            _validate_cron(value)
         setattr(cfg, field, value)
 
     cfg.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class LoginRequest(BaseModel):
@@ -152,3 +152,19 @@ class PerformanceResponse(BaseModel):
     by_interface: list[InterfacePerf]
     sla_summary: SlaSummary
     slow_alerts: list[SlowAlert]
+
+
+# --- Bulk Retry ---
+
+class BulkRetryItem(BaseModel):
+    log_id: uuid.UUID
+    result: str   # SUCCESS | FAILED | ALREADY_PROCESSED
+    message: str
+
+
+class BulkRetryRequest(BaseModel):
+    log_ids: list[uuid.UUID] = Field(..., min_length=1, max_length=50)
+
+
+class BulkRetryResponse(BaseModel):
+    results: list[BulkRetryItem]

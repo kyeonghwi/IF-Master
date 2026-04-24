@@ -150,7 +150,20 @@ export default function InterfacesPage() {
                     </td>
                     <td className="px-4 py-3 text-muted">{cfg.timeout_ms.toLocaleString()}ms</td>
                     <td className="px-4 py-3 text-muted text-[11px]">
-                      {cfg.schedule_cron ?? <span className="text-dim">-</span>}
+                      {cfg.schedule_cron ? (
+                        <code
+                          className="inline-block font-mono text-[11px] rounded-[2px] border border-border"
+                          style={{
+                            padding: '2px 6px',
+                            background: 'rgba(255,255,255,0.05)',
+                            color: 'var(--muted)',
+                          }}
+                        >
+                          {cfg.schedule_cron}
+                        </code>
+                      ) : (
+                        <span style={{ color: 'var(--dim)' }}>—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1 justify-end">

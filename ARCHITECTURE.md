@@ -36,6 +36,8 @@ IF-Master/
 │   FastAPI (backend/app/main.py)                        │
 │   Routers: auth, interfaces, logs, retry, stats,       │
 │            performance, stream, mock_router            │
+│   New (SPEC-OPS-001): POST /retry/bulk,               │
+│            GET /logs/export (streaming CSV)           │
 │   Auth dep: require_auth (JWT HS256, httpOnly cookie)  │
 └───┬───────────────┬───────────────────────────────────┬─┘
     │               │                                   │
@@ -74,11 +76,22 @@ IF-Master/
 ## Key Architecture Patterns
 
 ### Idempotent Retry (Headline Feature)
-1. Client calls `POST /api/retry/{log_id}`
-2. Router fetches log row with `SELECT ... FOR UPDATE` (row lock)
+1. Client calls `POST /api/retry/{log_id}` (single) or `POST /api/retry/bulk` (1–50 items)
+2. Router fetches log row with `SELECT ... FOR UPDATE` (row lock) inside `_retry_one` helper
 3. Calls `GET /mock/status?key={idempotency_key}` to check external state
 4. If already processed → returns `ALREADY_PROCESSED` without re-sending
 5. Otherwise → calls `POST /mock/call`, writes result, appends to `audit_log`
+6. Bulk path: each item runs in its own `db.begin()` transaction; a DB error on one item never rolls back other items
+
+### CSV Log Export (SPEC-OPS-001)
+- `GET /api/logs/export` accepts the same filter params as the list endpoint plus `protocol`, `start_date`, `end_date`
+- Streams `text/csv` via `StreamingResponse` + async generator to avoid loading all rows into memory
+- Cap: 10,000 rows; `X-Row-Limit-Reached: true` header signals truncation
+- Security: `_csv_safe()` helper prefixes formula-trigger chars (`= + - @ \t \r`) with `'` to prevent spreadsheet injection (CWE-1236)
+
+### Cron Schedule Validation (SPEC-OPS-001)
+- `_validate_cron()` in `routers/interfaces.py` applies a 5-field regex before `INSERT`/`UPDATE`
+- Returns HTTP 422 `{"code": "INVALID_CRON"}` on mismatch; `null`/empty string bypasses validation (no-schedule case)
 
 ### SSE Broadcast Fan-Out
 - `app.state.client_queues` — set of `asyncio.Queue` (one per connected browser)
@@ -97,6 +110,8 @@ IF-Master/
 | `/auth/*` | No | Login/logout endpoints |
 | `/api/*` (default) | Yes (global dep) | All API routes |
 | `/api/retry/{log_id}` | Per-route (username extraction) | Needs operator name from token |
+| `/api/retry/bulk` | Per-route (username extraction) | Same ADMIN/OPERATOR role guard |
+| `/api/logs/export` | Per-route (`get_current_user`) | Download must be authenticated |
 | `/api/stream` | No | EventSource can't set headers |
 | `/mock/*` | No | Internal harness |
 
@@ -120,7 +135,7 @@ IF-Master/
 
 ## File Size Compliance
 
-All source files are under the 300-line hard limit. Largest: `routers/interfaces.py` (~191 lines). The project is compliant.
+All source files are under the 300-line hard limit. Largest post-SPEC-OPS-001: `routers/retry.py` (~238 lines). The project is compliant.
 
 ## Known Architectural Notes
 
