@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
@@ -20,19 +20,21 @@ async def get_performance(
     target_org: str | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     effective_from = from_dt.replace(tzinfo=None) if from_dt else now - timedelta(hours=24)
     effective_to = to_dt.replace(tzinfo=None) if to_dt else now
 
     params: dict = {"from_dt": effective_from, "to_dt": effective_to, "sla_ms": _SLA_THRESHOLD_MS}
-    filters = "called_at BETWEEN :from_dt AND :to_dt"
+    conditions = ["called_at BETWEEN :from_dt AND :to_dt"]
 
     if protocol:
-        filters += " AND protocol = :protocol"
+        conditions.append("protocol = :protocol")
         params["protocol"] = protocol
     if target_org:
-        filters += " AND target_org = :target_org"
+        conditions.append("target_org = :target_org")
         params["target_org"] = target_org
+
+    filters = " AND ".join(conditions)
 
     perf_sql = text(f"""
         SELECT

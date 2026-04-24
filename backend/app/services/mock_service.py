@@ -1,7 +1,7 @@
 import asyncio
 import json
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -43,7 +43,7 @@ async def dispatch(
     else:
         outcome = "FAILED"
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     if outcome == "SUCCESS":
         if protocol.upper() == "SOAP":

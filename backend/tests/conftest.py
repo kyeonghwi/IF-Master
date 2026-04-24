@@ -8,7 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.config import settings
-from app.db.models import AuditLog, Base, InterfaceConfig, InterfaceLog
+from app.db.models import AuditLog, Base, InterfaceLog
 
 
 @pytest.fixture(scope="session")
@@ -133,7 +133,7 @@ async def sample_logs(session_factory) -> list[InterfaceLog]:
 
 @pytest.fixture
 async def failed_log_with_audit(sample_logs, session_factory) -> InterfaceLog:
-    failed = next(l for l in sample_logs if l.status == "FAILED")
+    failed = next(log for log in sample_logs if log.status == "FAILED")
     audit = AuditLog(
         id=uuid.uuid4(),
         interface_log_id=failed.id,

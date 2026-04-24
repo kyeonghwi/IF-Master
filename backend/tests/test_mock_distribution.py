@@ -2,7 +2,6 @@
 Verifies /mock/call response distribution: 100 calls should yield 55-65 SUCCESS outcomes.
 Also verifies /mock/status returns stored result for known keys.
 """
-import pytest
 from httpx import AsyncClient
 
 
@@ -11,7 +10,7 @@ async def test_mock_call_distribution(client: AsyncClient):
     total = 100
 
     for i in range(total):
-        resp = await client.post(f"/mock/call", params={"key": f"TEST-dist-{i:04d}"})
+        resp = await client.post("/mock/call", params={"key": f"TEST-dist-{i:04d}"})
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] in ("SUCCESS", "FAILED")

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import random
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -58,7 +59,7 @@ def start_scheduler(app) -> None:
         count = random.randint(1, 3)
 
         async def _work() -> None:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
             records: list[InterfaceLog] = []
 
             for _ in range(count):
@@ -107,7 +108,7 @@ def start_scheduler(app) -> None:
 
         fut = asyncio.run_coroutine_threadsafe(_work(), loop)
         fut.add_done_callback(
-            lambda f: print(f"[scheduler] error: {f.exception()}") if f.exception() else None
+            lambda f: logging.getLogger(__name__).error("[scheduler] error: %s", f.exception()) if f.exception() else None
         )
 
     scheduler.add_job(generate_transactions, "interval", seconds=30)

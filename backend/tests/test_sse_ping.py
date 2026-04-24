@@ -3,8 +3,6 @@ Verifies SSE /api/stream sends a ping event within 35 seconds of connection.
 Uses asyncio.timeout to cap the wait.
 """
 import asyncio
-import json
-import pytest
 from httpx import AsyncClient
 
 

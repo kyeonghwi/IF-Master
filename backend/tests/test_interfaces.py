@@ -1,5 +1,4 @@
 """Tests for Interface Registry CRUD and execute endpoint."""
-import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest

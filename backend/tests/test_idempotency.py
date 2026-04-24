@@ -9,7 +9,6 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from httpx import AsyncClient
 
-from app.config import settings
 from app.db.models import InterfaceLog
 
 
@@ -17,7 +16,7 @@ from app.db.models import InterfaceLog
 async def failed_log(session_factory) -> InterfaceLog:
     log = InterfaceLog(
         id=uuid.uuid4(),
-        idempotency_key=f"FSS-20260419-idem01",
+        idempotency_key="FSS-20260419-idem01",
         target_org="금감원",
         protocol="REST",
         service_name="보험료납입통보",

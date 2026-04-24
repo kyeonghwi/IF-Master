@@ -4,7 +4,6 @@ from datetime import datetime, timedelta
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.db.models import InterfaceLog
 

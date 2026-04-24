@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import datetime, timezone
 
@@ -58,7 +59,7 @@ async def retry_transaction(
                     detail={"code": "RETRY_LIMIT_EXCEEDED", "message": "최대 재처리 횟수 초과"},
                 )
 
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
             db.add(AuditLog(
                 interface_log_id=log.id,
                 action="RETRY_REQUEST",
@@ -86,7 +87,7 @@ async def retry_transaction(
                             interface_log_id=log.id,
                             action="RETRY_SKIP",
                             operator=operator,
-                            executed_at=datetime.utcnow(),
+                            executed_at=datetime.now(timezone.utc).replace(tzinfo=None),
                             result="ALREADY_PROCESSED",
                         ))
                         api_result = "ALREADY_PROCESSED"
@@ -105,7 +106,7 @@ async def retry_transaction(
                                 interface_log_id=log.id,
                                 action="RETRY_SUCCESS",
                                 operator=operator,
-                                executed_at=datetime.utcnow(),
+                                executed_at=datetime.now(timezone.utc).replace(tzinfo=None),
                                 result="SUCCESS",
                             ))
                             api_result = "SUCCESS"
@@ -117,7 +118,7 @@ async def retry_transaction(
                                 interface_log_id=log.id,
                                 action="RETRY_FAILED",
                                 operator=operator,
-                                executed_at=datetime.utcnow(),
+                                executed_at=datetime.now(timezone.utc).replace(tzinfo=None),
                                 result="FAILED",
                             ))
                             api_result = "FAILED"
@@ -130,7 +131,7 @@ async def retry_transaction(
                     interface_log_id=log.id,
                     action="RETRY_FAILED",
                     operator=operator,
-                    executed_at=datetime.utcnow(),
+                    executed_at=datetime.now(timezone.utc).replace(tzinfo=None),
                     result="FAILED",
                 ))
                 api_result = "FAILED"
@@ -152,7 +153,7 @@ async def retry_transaction(
             "retry_result",
             {"id": str(log_id), "result": api_result, "message": api_message},
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        logging.getLogger(__name__).warning("SSE broadcast failed: %s", exc)
 
     return {"result": api_result, "message": api_message}

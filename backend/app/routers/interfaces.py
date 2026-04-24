@@ -9,7 +9,6 @@ from app.db.database import get_db
 from app.db.models import AuditLog, InterfaceConfig, InterfaceLog
 from app.dependencies import get_current_user
 from app.schemas import (
-    ExecuteResult,
     InterfaceConfigCreate,
     InterfaceConfigListResponse,
     InterfaceConfigResponse,

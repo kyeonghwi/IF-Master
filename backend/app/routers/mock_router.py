@@ -12,6 +12,9 @@ from app.db.database import get_db
 from app.db.models import MockResponse
 
 router = APIRouter(prefix="/mock")
+# No authentication: intentional internal harness. The retry router and
+# execute_interface call these endpoints internally via httpx. Adding auth
+# would require threading the bearer token through those internal calls.
 
 
 @router.get("/status")
@@ -36,7 +39,7 @@ async def mock_call(key: str, db: AsyncSession = Depends(get_db)):
         await asyncio.sleep(3)
         outcome = "SUCCESS" if random.random() < 0.5 else "FAILED"
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     if outcome == "SUCCESS":
         response_json = json.dumps({"status": "SUCCESS", "data": {"processed_at": now.isoformat()}})

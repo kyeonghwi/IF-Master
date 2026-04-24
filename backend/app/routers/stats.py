@@ -17,7 +17,7 @@ async def get_stats(
     to_dt: datetime | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> StatsResponse:
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     effective_from = (from_dt.replace(tzinfo=None) if from_dt is not None else now - timedelta(hours=24))
     effective_to = (to_dt.replace(tzinfo=None) if to_dt is not None else now)
 
