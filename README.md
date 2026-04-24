@@ -165,8 +165,10 @@ pytest -v
 
 | 문서 | 내용 |
 |------|------|
-| [PRD](docs/prd.md) | 설계 의도 및 기술 결정 근거 |
-| [Architecture](docs/architecture.md) | ERD + 시퀀스 다이어그램 |
+| [기획서](docs/기획서.md) | 추진 배경 · 기능 정의 · AI 활용 계획 · 기대 효과 |
+| [개발문서](docs/개발문서.md) | 시스템 아키텍처 · ERD · 멱등성 설계 · API 명세 · 데모 가이드 |
+| [PRD](docs/prd.md) | 설계 의도 및 기술 결정 근거 (상세) |
+| [Architecture](docs/architecture.md) | ERD + 시퀀스 다이어그램 (상세) |
 | [API Reference](docs/api-reference.md) | 전체 엔드포인트 명세 |
 | [Demo Guide](docs/demo-guide.md) | 심사자용 3분 데모 시나리오 |
 
