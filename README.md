@@ -2,7 +2,7 @@
 
 > 보험사 대내외 인터페이스 통합 관제 및 재처리 시스템 (채용 포트폴리오)
 
-**라이브 데모**: [ifmaster.vercel.app](https://if-master.vercel.app) — `test_admin / demo1234` 또는 원클릭 데모 버튼
+**라이브 데모**: [if-master.vercel.app](https://if-master.vercel.app) — `test_admin / demo1234` 또는 원클릭 데모 버튼
 
 ---
 
